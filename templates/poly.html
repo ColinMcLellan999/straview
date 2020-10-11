@@ -1,0 +1,204 @@
+<html>
+  <head>
+    <title>StraView</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <style>
+      body {
+          font: 18px Arial,sans-serif; 
+          margin: 0px;
+      }
+      .header {
+          padding: 5px;
+          background: #acb3b9; 
+      }
+      .header h1 {
+          font-size: 14px;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      
+      /* Create three equal columns that floats next to each other */
+      .column {
+        float: left;
+        width: 50%;
+        padding: 10px;
+        heightX: 600px; /* Should be removed. Only for demonstration */
+        height: 100%; /* Should be removed. Only for demonstration */
+      }
+      
+      /* Clear floats after the columns */
+      .row:after {
+        content: "";
+        display: table;
+        clear: both;
+      }
+      
+      /* Responsive layout - makes the three columns stack on top of each other instead of next to each other */
+      @media screen and (max-width: 600px) {
+        .column {
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <script src="http://cdn.leafletjs.com/leaflet-0.7/leaflet.js"></script>
+    <script
+      type="text/javascript"
+      src="https://rawgit.com/jieter/Leaflet.encoded/master/Polyline.encoded.js"
+    ></script>
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="https://cdn.datatables.net/1.10.22/js/jquery.dataTables.min.js"></script>
+    <script type="text/javascript" src="{{jsource}}"></script>
+
+    <!-- https://storage.googleapis.com/straview.appspot.com/data/mystring -->
+
+    <link rel="stylesheet"
+    href="https://cdn.datatables.net/1.10.22/css/jquery.dataTables.min.css"
+    />
+    
+    <link
+      rel="stylesheet"
+      href="http://cdn.leafletjs.com/leaflet-0.7/leaflet.css"
+    />
+
+
+    <div class="header">
+      <h1><a href="/">StraView Home</a>&nbsp;&nbsp;&nbsp;
+        <a href="/refresh">Refresh From STRAVA (200 max)</a>&nbsp;&nbsp;&nbsp;
+        <a href="/delete">Delete all cached data from StraView and Logout</a>
+      </h1>
+    </div>
+
+    <div class="row">
+      <div class="column" id="data">
+        <script>
+          $(document).ready(function() {
+            var table = $('#straview').DataTable( {
+                  data: displayActs,
+                  columns: displayFields,
+                  order: [[ 2, "desc" ]],
+                  "iDisplayLength": 10,
+                  fixedHeader: true,
+                  fixedColumns: true,
+                  "scrollY": true,
+                  "scrollX": true,
+                  columnDefs: [
+                  {
+                      targets: [1,2],
+                      className: 'dt-body-nowrap'
+                  },
+                  {
+                    "targets": [ 0 ],
+                    "visible": false,
+                    "searchable": false
+                  }
+                  ]
+              } );
+              $('#straview tbody').on('click', 'tr', function () {
+                if ( $(this).hasClass('selected') ) {
+                  $(this).removeClass('selected');
+                }
+                else {
+                    table.$('tr.selected').removeClass('selected');
+                    $(this).addClass('selected');
+                }
+            
+                var data = table.row( this ).data();
+                //alert( 'You clicked on '+data+'\'s row. which is: '+table.row('.selected') );
+                mapHighlight(parseInt(data[0]))
+            } );
+          } );
+        </script>
+        <table id="straview" class="display compact cell-border" width="100%"></table>
+      </div>
+
+
+
+      <div id="map" class="column">
+        <h2>Loading map...</h2>
+        <script>
+          var lastHighlightId = -1
+          var lastHighlightData
+          function mapHighlight(iroute) {
+            if (lastHighlightId >= 0) {
+              routes[lastHighlightId].setStyle(lastHighlightData)
+            }
+            lastHighlightId = iroute
+            lastHighlightData = routes[lastHighlightId].options
+            routes[iroute].setStyle({
+              color: 'green',
+              weight: 7,
+              dashArray: 4,
+              dashOffset: '4',
+              opacity: 1.0
+            })
+            routes[0].bringToFront()
+            routes[iroute].bringToFront()
+          }
+        
+          // find centre of last route
+          var poly = encodedRoutes[0][1]
+          var coords = L.Polyline.fromEncoded(poly).getLatLngs()
+          var lat = 0
+          var lng = 0
+          for (c of coords) {
+            lat += c.lat
+            lng += c.lng
+          }
+          lat = lat / coords.length
+          lng = lng / coords.length
+          
+          var map = L.map("map").setView([lat, lng], 11);
+          L.tileLayer("http://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 18,
+          }).addTo(map);
+        
+          let hue1 = 136
+          let hue2 = 237
+          let splits = 7
+          let sat = 65
+          let lit = 60
+        
+          var routes = new Array(encodedRoutes.length)
+        
+          for (var iroute = encodedRoutes.length - 1; iroute >= 0; iroute--) {
+            var route = encodedRoutes[iroute]
+            var popup = route[0]
+            var polyline = route[1]
+            var coordinates = L.Polyline.fromEncoded(polyline).getLatLngs()
+        
+            var op1 = 0.1
+            var op2 = 1.0
+            var opac = op1 + ((op2-op1)* ((encodedRoutes.length -iroute)/encodedRoutes.length))
+        
+            let color = "#3344ff"
+        
+            if (iroute == 0) {
+                color = "#ff4433"
+            } else {
+                if (iroute < splits) {
+                    // color =hslToHex(hue2 - iroute*(hue2-hue1)/splits, sat, lit)
+                    color = "#9c2696"
+                } else {
+                    color = "#3344FF"
+                }
+            }
+        
+            routes[iroute] = L.polyline(coordinates, {
+              color: color,
+              weight: 4,
+              opacity: opac,
+              lineJoin: "round",
+            }).addTo(map);
+        
+            routes[iroute].bindPopup(popup);
+          }
+        </script>
+      </div>
+
+    </div>
+  </body>
+</html>
